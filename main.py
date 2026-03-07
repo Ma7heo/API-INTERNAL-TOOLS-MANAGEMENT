@@ -1,18 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from typing import Optional
+from decimal import Decimal
+import logging
 
 import models
 import schemas
 from database import get_db
-
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import func
-
-from typing import Optional
-from decimal import Decimal
-
 import services
+
 
 app = FastAPI(
     title="Internal Toll API",
@@ -20,6 +18,11 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/api/docs"
 )
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+)
+logger = logging.getLogger("TechCorp_API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +43,7 @@ def health_check():
 @app.post("/api/tools",response_model=schemas.ToolResponse, status_code=status.HTTP_201_CREATED, tags=["Outils"])
 def create_tool(tool: schemas.ToolCreate, db: Session = Depends(get_db)):
     """Ajoute un nouvel outil au catalogue."""
-
+    logger.info(f"Tentative de création d'un nouvel outil : {tool.name} par le département {tool.owner_department}")
     try:
         return services.create_tool(db, tool)
     except ValueError as e:
@@ -49,7 +52,6 @@ def create_tool(tool: schemas.ToolCreate, db: Session = Depends(get_db)):
 @app.get("/api/tools/{tool_id}",response_model=schemas.ToolDetailResponse, tags=["Outils"])
 def get_tool(tool_id: int, db: Session = Depends(get_db)):
     """Récupère les détails d'un outil"""
-
     tool_detail = services.get_tool_detail(db, tool_id)
     if not tool_detail:
         raise HTTPException(status_code=404, detail="Tool not found")
@@ -58,7 +60,7 @@ def get_tool(tool_id: int, db: Session = Depends(get_db)):
 @app.put("/api/tools/{tool_id}",response_model=schemas.ToolResponse, tags=["Outils"])
 def update_tool(tool_id: int, tool_update: schemas.ToolUpdate, db: Session = Depends(get_db)):
     """Modifie les information d'un outil"""
-
+    logger.info(f"Tentative de mise à jour pour l'outil ID: {tool_id}")
     try:
         updated_tool = services.update_tool(db, tool_id, tool_update)
         if not updated_tool:
@@ -84,8 +86,22 @@ def list_tools(
     db: Session = Depends(get_db)
 ):
     """Liste les outils avec système de pagination et filtres dynamiques."""
-    
     return services.list_tools(
         db, skip, limit, name, vendor, category, department, status,
         monthly_cost_min, monthly_cost_max, active_users_count_min, active_users_count_max
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Intercepte les crashs imprévus (500) pour ne pas fuiter le code interne."""
+    logger.error(f"Erreur critique sur la route {request.url.path} : {str(exc)}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": 500,
+                "message": "Internal Server Error - Quelque chose s'est mal passé côté serveur."
+            }
+        }
     )
