@@ -6,6 +6,9 @@ import models
 import schemas
 from database import get_db
 
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import func
+
 app = FastAPI(
     title="Internal Toll API",
     description="API REST pour la gestion des outils SaaS internes de TechCorp Solutions.",
@@ -53,3 +56,49 @@ def create_tool(tool: schemas.ToolCreate, db: Session = Depends(get_db)):
     db.refresh(new_tool)
 
     return new_tool
+
+@app.get("/api/tools/{tool_id}",response_model=schemas.ToolDetailResponse, tags=["Outils"])
+def get_tool(tool_id: int, db: Session = Depends(get_db)):
+    """Récupère les détails d'un outil"""
+
+    tool = db.query(models.Tool).filter(models.Tool.id == tool_id).first()
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+    
+    total_monthly_cost = tool.monthly_cost * tool.active_users_count
+
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+
+    usage_stats = db.query(
+        func.count(models.UsageLog.id).label("total_sessions"),
+        func.avg(models.UsageLog.usage_minutes).label("avg_minutes")
+    ).filter(
+        models.UsageLog.tool_id == tool_id,
+        models.UsageLog.session_date >= thirty_days_ago.date()
+    ).first()
+
+    total_sessions = usage_stats.total_sessions or 0
+    avg_session_minutes = int(usage_stats.avg_minutes) if usage_stats.avg_minutes else 0
+    
+    return {
+        "id": tool.id,
+        "name": tool.name,
+        "description": tool.description,
+        "vendor": tool.vendor,
+        "website_url": str(tool.website_url) if tool.website_url else None,
+        "monthly_cost": tool.monthly_cost,
+        "owner_department": tool.owner_department,
+        "category": tool.category.name,
+        "status": tool.status,
+        "active_users_count": tool.active_users_count,
+        "created_at": tool.created_at,
+        "updated_at": tool.updated_at,
+        "total_monthly_cost": total_monthly_cost,
+        "usage_metrics": {
+            "last_30_days": {
+                "total_sessions": total_sessions,
+                "avg_session_minutes": avg_session_minutes
+            }
+        }
+
+    }
