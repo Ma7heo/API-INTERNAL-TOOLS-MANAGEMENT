@@ -9,6 +9,9 @@ from database import get_db
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 
+from typing import Optional
+from decimal import Decimal
+
 app = FastAPI(
     title="Internal Toll API",
     description="API REST pour la gestion des outils SaaS internes de TechCorp Solutions.",
@@ -133,3 +136,72 @@ def update_tool(tool_id: int, tool_update: schemas.ToolUpdate, db: Session = Dep
     db.refresh(db_tool)
 
     return db_tool
+
+
+@app.get("/api/tools", response_model=schemas.PaginatedToolResponse, tags=["Outils"])
+def list_tools(
+    skip: int = 0, 
+    limit: int = 10, 
+    name: Optional[str] = None,
+    vendor: Optional[str] = None,
+    category: Optional[str] = None, 
+    department: Optional[models.DepartmentType] = None, 
+    status: Optional[models.ToolStatusType] = None, 
+    monthly_cost_min: Optional[Decimal] = None,
+    monthly_cost_max: Optional[Decimal] = None,
+    active_users_count_min: Optional[int] = None,
+    active_users_count_max: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Liste les outils avec système de pagination et filtres dynamiques."""
+    
+    query = db.query(models.Tool)
+    total_tools = query.count()
+    filters_applied = {}
+    
+    if name:
+        query = query.filter(models.Tool.name.ilike(f"%{name}%"))
+        filters_applied["name"] = name
+        
+    if vendor:
+        query = query.filter(models.Tool.vendor.ilike(f"%{vendor}%"))
+        filters_applied["vendor"] = vendor
+        
+    if category:
+        query = query.join(models.Category).filter(models.Category.name.ilike(f"%{category}%"))
+        filters_applied["category"] = category
+        
+    if department:
+        query = query.filter(models.Tool.owner_department == department)
+        filters_applied["department"] = department.value
+        
+    if status:
+        query = query.filter(models.Tool.status == status)
+        filters_applied["status"] = status.value
+        
+    if monthly_cost_min is not None:
+        query = query.filter(models.Tool.monthly_cost >= monthly_cost_min)
+        filters_applied["monthly_cost_min"] = float(monthly_cost_min) 
+        
+    if monthly_cost_max is not None:
+        query = query.filter(models.Tool.monthly_cost <= monthly_cost_max)
+        filters_applied["monthly_cost_max"] = float(monthly_cost_max)
+        
+    if active_users_count_min is not None:
+        query = query.filter(models.Tool.active_users_count >= active_users_count_min)
+        filters_applied["active_users_count_min"] = active_users_count_min
+        
+    if active_users_count_max is not None:
+        query = query.filter(models.Tool.active_users_count <= active_users_count_max)
+        filters_applied["active_users_count_max"] = active_users_count_max
+        
+    filtered_tools_count = query.count()
+    
+    tools = query.offset(skip).limit(limit).all()
+    
+    return {
+        "data": tools,
+        "total": total_tools,
+        "filtered": filtered_tools_count,
+        "filters_applied": filters_applied
+    }
