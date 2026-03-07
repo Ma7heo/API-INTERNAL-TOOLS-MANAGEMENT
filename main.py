@@ -102,3 +102,34 @@ def get_tool(tool_id: int, db: Session = Depends(get_db)):
         }
 
     }
+
+@app.put("/api/tools/{tool_id}",response_model=schemas.ToolResponse, tags=["Outils"])
+def update_tool(tool_id: int, tool_update: schemas.ToolUpdate, db: Session = Depends(get_db)):
+    """Modifie les information d'un outil"""
+
+    db_tool = db.query(models.Tool).filter(models.Tool.id == tool_id).first()
+    if not db_tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+    
+    if tool_update.category_id is not None:
+        category = db.query(models.Category).filter(models.Category.id == tool_update.category_id).first()
+        if not category:
+            raise HTTPException(status_code=400, detail="Category ID does not exist")
+    
+    if tool_update.name is not None and tool_update.name != db_tool.name:
+        existing_tool = db.query(models.Tool).filter(models.Tool.name == tool_update.name).first()
+        if existing_tool:
+            raise HTTPException(status_code=400, detail="Tool name already exists")
+    
+    update_data = tool_update.model_dump(exclude_unset=True)
+    
+    if "website_url" in update_data and update_data["website_url"] is not None:
+        update_data["website_url"] = str(update_data["website_url"])
+
+    for key, value in update_data.items():
+        setattr(db_tool, key, value)
+    
+    db.commit()
+    db.refresh(db_tool)
+
+    return db_tool
