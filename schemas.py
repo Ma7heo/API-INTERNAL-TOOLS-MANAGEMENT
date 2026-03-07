@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict, field_validator
 from typing import Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
@@ -10,7 +10,7 @@ class ToolBase(BaseModel):
     description: Optional[str] = None
     vendor: str = Field(..., max_length=100, description="Fournisseur (max 100 caractères)")
     website_url: Optional[HttpUrl] = Field(None, description="URL valide du site web")
-    monthly_cost: Decimal = Field(..., ge=0, decimal_places=2, description="Coût mensuel (positif, max 2 décimales)")
+    monthly_cost: Decimal = Field(..., ge=0, decimal_places=2, description="Coût mensuel (positif, max 2 décimales)", json_schema_extra={"example": 8.50})
     owner_department: DepartmentType
 
 class ToolCreate(ToolBase):
@@ -37,6 +37,13 @@ class ToolResponse(ToolBase):
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator('category', mode='before')
+    @classmethod
+    def extract_category_name(cls, v):
+        if hasattr(v, 'name'):
+            return v.name
+        return v
 
 class UsageMetrics(BaseModel):
     total_sessions: int
