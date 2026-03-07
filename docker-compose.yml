@@ -1,0 +1,121 @@
+services:
+  # =============================================
+  # MYSQL SERVICE - Stack MySQL
+  # =============================================
+  mysql:
+    image: mysql:8.0
+    container_name: internal-tools-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      # Script d'initialisation (structure + données)
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      # Persistance données (optionnelle pour dev)
+      - mysql_data:/var/lib/mysql
+    networks:
+      - internal-tools-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - mysql
+      - all
+
+  # =============================================  
+  # POSTGRESQL SERVICE - Stack PostgreSQL
+  # =============================================
+  postgres:
+    image: postgres:15-alpine  
+    container_name: internal-tools-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      # Script d'initialisation (structure + données)
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      # Persistance données (optionnelle pour dev)
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal-tools-net  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - postgres
+      - all
+
+  # =============================================
+  # PHPMYADMIN - Interface MySQL
+  # =============================================  
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: internal-tools-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+      PMA_ARBITRARY: 1
+    ports:
+      - "${PHPMYADMIN_PORT}:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - internal-tools-net
+    profiles:
+      - mysql
+      - all
+
+  # =============================================  
+  # PGADMIN - Interface PostgreSQL
+  # =============================================
+  pgadmin:
+    image: dpage/pgadmin4:7
+    container_name: internal-tools-pgadmin  
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy  
+    networks:
+      - internal-tools-net
+    profiles:
+      - postgres
+      - all
+
+# =============================================
+# VOLUMES & NETWORKS
+# =============================================
+volumes:
+  mysql_data:
+    driver: local
+  postgres_data:  
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  internal-tools-net:
+    driver: bridge
