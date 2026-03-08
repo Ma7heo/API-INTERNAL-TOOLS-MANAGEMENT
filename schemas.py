@@ -168,3 +168,4 @@ class VendorInsights(BaseModel):
 class VendorSummaryResponse(BaseModel):
     data: List[VendorSummaryItem]
     vendor_insights: VendorInsights
+    message: Optional[str] = None

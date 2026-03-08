@@ -422,7 +422,8 @@ def get_vendor_summary(db: Session):
                 "most_expensive_vendor": None,
                 "most_efficient_vendor": None,
                 "single_tool_vendors": 0
-            }
+            },
+            "message": "No analytics data available - ensure tools data exists" # <-- L'ajout est ici
         }
 
     vendors_dict = {}
