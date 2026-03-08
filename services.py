@@ -285,3 +285,62 @@ def get_expensive_tools(db: Session, limit: int = 10, min_cost: Optional[float] 
             "potential_savings_identified": round(potential_savings, 2)
         }
     }
+
+
+def get_tools_by_category(db: Session):
+    total_cost_query = db.query(func.sum(models.Tool.monthly_cost)).filter(models.Tool.status == "active").scalar()
+    total_company_cost = float(total_cost_query) if total_cost_query else 0.0
+
+    if total_company_cost == 0:
+        return {
+            "data": [],
+            "insights": {"most_expensive_category": None, "most_efficient_category": None},
+            "message": "No analytics data available - ensure tools data exists"
+        }
+
+    category_stats = db.query(
+        models.Category.name.label("category_name"),
+        func.count(models.Tool.id).label("tools_count"),
+        func.sum(models.Tool.monthly_cost).label("total_cost"),
+        func.sum(models.Tool.active_users_count).label("total_users")
+    ).join(
+        models.Tool, models.Category.id == models.Tool.category_id
+    ).filter(
+        models.Tool.status == "active"
+    ).group_by(
+        models.Category.id
+    ).all()
+
+    data_list = []
+    for stat in category_stats:
+        cat_name = stat.category_name
+        total_cost = float(stat.total_cost or 0)
+        tools_count = int(stat.tools_count or 0)
+        total_users = int(stat.total_users or 0)
+
+        percentage = round((total_cost / total_company_cost) * 100, 1)
+        avg_cpu = round(total_cost / total_users, 2) if total_users > 0 else 0.0
+
+        data_list.append({
+            "category_name": cat_name,
+            "tools_count": tools_count,
+            "total_cost": round(total_cost, 2),
+            "total_users": total_users,
+            "percentage_of_budget": percentage,
+            "average_cost_per_user": avg_cpu
+        })
+
+    sorted_expensive = sorted(data_list, key=lambda x: (-x["total_cost"], x["category_name"]))
+    most_expensive_cat = sorted_expensive[0]["category_name"] if sorted_expensive else None
+
+    valid_for_efficiency = [c for c in data_list if c["total_users"] > 0]
+    sorted_efficient = sorted(valid_for_efficiency, key=lambda x: (x["average_cost_per_user"], x["category_name"]))
+    most_efficient_cat = sorted_efficient[0]["category_name"] if valid_for_efficiency else None
+
+    return {
+        "data": data_list,
+        "insights": {
+            "most_expensive_category": most_expensive_cat,
+            "most_efficient_category": most_efficient_cat
+        }
+    }

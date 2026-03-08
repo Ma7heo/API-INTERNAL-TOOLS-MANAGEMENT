@@ -106,3 +106,24 @@ class ExpensiveToolsResponse(BaseModel):
     data: List[ExpensiveToolItem]
     analysis: ExpensiveToolsAnalysis
     message: Optional[str] = None
+
+
+
+
+
+class CategoryAnalyticsItem(BaseModel):
+    category_name: str
+    tools_count: int
+    total_cost: float
+    total_users: int
+    percentage_of_budget: float
+    average_cost_per_user: float
+
+class CategoryAnalyticsInsights(BaseModel):
+    most_expensive_category: Optional[str] = None
+    most_efficient_category: Optional[str] = None
+
+class CategoryAnalyticsResponse(BaseModel):
+    data: List[CategoryAnalyticsItem]
+    insights: CategoryAnalyticsInsights
+    message: Optional[str] = None

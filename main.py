@@ -143,3 +143,8 @@ def get_expensive_tools_analytics(
     
     response_data = services.get_expensive_tools(db, limit, min_cost)
     return schemas.ExpensiveToolsResponse(**response_data)
+
+@app.get("/api/analytics/tools-by-category", response_model=schemas.CategoryAnalyticsResponse, tags=["Analytics"])
+def get_tools_by_category_analytics(db: Session = Depends(get_db)):
+    """Analyse la répartition de la stack technologique par domaine (Stakeholder: IT Director)."""
+    return services.get_tools_by_category(db)

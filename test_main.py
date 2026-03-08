@@ -265,3 +265,83 @@ def test_analytics_expensive_tools_happy_path():
     
     assert tools_data[1]["name"] == "GoodTool"
     assert tools_data[1]["efficiency_rating"] == "excellent"
+
+def test_analytics_tools_by_category_happy_path():
+    """Vérifie le JOIN, le calcul des pourcentages et la logique stricte des Insights."""
+    db = TestingSessionLocal()
+    
+    cat_dev = models.Category(name="Development", description="Dev")
+    cat_com = models.Category(name="Communication", description="Com")
+    db.add_all([cat_dev, cat_com])
+    db.commit() 
+
+    db.add(models.Tool(name="DevTool1", description="D", vendor="V", monthly_cost=100.0, owner_department="Engineering", category_id=cat_dev.id, status="active", active_users_count=10))
+    
+    db.add(models.Tool(name="ComTool1", description="D", vendor="V", monthly_cost=50.0, owner_department="Engineering", category_id=cat_com.id, status="active", active_users_count=20))
+    
+    db.add(models.Tool(name="DeadDevTool", description="D", vendor="V", monthly_cost=500.0, owner_department="Engineering", category_id=cat_dev.id, status="deprecated", active_users_count=100))
+    
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/tools-by-category")
+    assert response.status_code == 200
+    result = response.json()
+    
+    assert result["insights"]["most_expensive_category"] == "Development"
+    assert result["insights"]["most_efficient_category"] == "Communication"
+    
+    com_stats = next(c for c in result["data"] if c["category_name"] == "Communication")
+    assert com_stats["total_cost"] == 50.0
+    assert com_stats["percentage_of_budget"] == 33.3
+    assert com_stats["average_cost_per_user"] == 2.5
+
+def test_analytics_tools_by_category_happy_path():
+    db = TestingSessionLocal()
+    
+    cat_dev = models.Category(name="Development", description="Dev tools")
+    cat_msg = models.Category(name="Messaging", description="Comms tools") 
+    cat_ops = models.Category(name="Operations", description="Ops tools")
+    db.add_all([cat_dev, cat_msg, cat_ops])
+    db.commit()
+
+    tools = [
+        models.Tool(name="EngTool1", description="D", vendor="V1", monthly_cost=100.0, owner_department="Engineering", category_id=cat_dev.id, status="active", active_users_count=10),
+        models.Tool(name="EngTool2", description="D", vendor="V2", monthly_cost=200.0, owner_department="Engineering", category_id=cat_dev.id, status="active", active_users_count=40),
+        models.Tool(name="SalesTool1", description="D", vendor="V3", monthly_cost=50.0, owner_department="Sales", category_id=cat_msg.id, status="active", active_users_count=25),
+        models.Tool(name="SalesTool2", description="D", vendor="V4", monthly_cost=150.0, owner_department="Sales", category_id=cat_msg.id, status="active", active_users_count=25),
+        models.Tool(name="HRTool1", description="D", vendor="V5", monthly_cost=500.0, owner_department="HR", category_id=cat_ops.id, status="active", active_users_count=5)
+    ]
+    db.add_all(tools)
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/tools-by-category")
+    assert response.status_code == 200
+    result = response.json()
+
+    assert result["insights"]["most_expensive_category"] == "Operations"
+    assert result["insights"]["most_efficient_category"] == "Messaging"
+
+    data = {item["category_name"]: item for item in result["data"]}
+    
+    # "Communication" (de la fixture) n'a pas d'outils, donc le JOIN l'ignore. Il en reste bien 3.
+    assert len(data) == 3
+
+    assert data["Development"]["tools_count"] == 2
+    assert data["Development"]["total_cost"] == 300.0
+    assert data["Development"]["total_users"] == 50
+    assert data["Development"]["percentage_of_budget"] == 30.0
+    assert data["Development"]["average_cost_per_user"] == 6.0
+
+    assert data["Messaging"]["tools_count"] == 2
+    assert data["Messaging"]["total_cost"] == 200.0
+    assert data["Messaging"]["total_users"] == 50
+    assert data["Messaging"]["percentage_of_budget"] == 20.0
+    assert data["Messaging"]["average_cost_per_user"] == 4.0
+
+    assert data["Operations"]["tools_count"] == 1
+    assert data["Operations"]["total_cost"] == 500.0
+    assert data["Operations"]["total_users"] == 5
+    assert data["Operations"]["percentage_of_budget"] == 50.0
+    assert data["Operations"]["average_cost_per_user"] == 100.0
