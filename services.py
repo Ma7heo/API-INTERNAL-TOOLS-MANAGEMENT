@@ -286,7 +286,6 @@ def get_expensive_tools(db: Session, limit: int = 10, min_cost: Optional[float] 
         }
     }
 
-
 def get_tools_by_category(db: Session):
     total_cost_query = db.query(func.sum(models.Tool.monthly_cost)).filter(models.Tool.status == "active").scalar()
     total_company_cost = float(total_cost_query) if total_cost_query else 0.0
@@ -342,5 +341,73 @@ def get_tools_by_category(db: Session):
         "insights": {
             "most_expensive_category": most_expensive_cat,
             "most_efficient_category": most_efficient_cat
+        }
+    }
+
+def get_low_usage_tools(db: Session, max_users: int = 5):
+    total_active_tools = db.query(models.Tool).filter(models.Tool.status == "active").count()
+    if total_active_tools == 0:
+        return {
+            "data": [],
+            "savings_analysis": {
+                "total_underutilized_tools": 0,
+                "potential_monthly_savings": 0.0,
+                "potential_annual_savings": 0.0
+            },
+            "message": "No analytics data available - ensure tools data exists"
+        }
+
+    low_usage_tools = db.query(models.Tool).filter(
+        models.Tool.status == "active",
+        models.Tool.active_users_count <= max_users
+    ).all()
+
+    processed_tools = []
+    potential_monthly_savings = 0.0
+
+    for tool in low_usage_tools:
+        cost_per_user = float(tool.monthly_cost) / tool.active_users_count if tool.active_users_count > 0 else 0.0
+        
+        if tool.active_users_count == 0:
+            warning = "high"
+        elif cost_per_user < 20.0:
+            warning = "low"
+        elif 20.0 <= cost_per_user <= 50.0:
+            warning = "medium"
+        else:
+            warning = "high"
+
+        if warning == "high":
+            action = "Consider canceling or downgrading"
+        elif warning == "medium":
+            action = "Review usage and consider optimization"
+        else:
+            action = "Monitor usage trends"
+
+        if warning in ["high", "medium"]:
+            potential_monthly_savings += float(tool.monthly_cost)
+
+        dept_name = tool.owner_department.value if hasattr(tool.owner_department, 'value') else tool.owner_department
+
+        processed_tools.append({
+            "id": tool.id,
+            "name": tool.name,
+            "monthly_cost": round(float(tool.monthly_cost), 2),
+            "active_users_count": tool.active_users_count,
+            "cost_per_user": round(cost_per_user, 2),
+            "department": dept_name,
+            "vendor": tool.vendor,
+            "warning_level": warning,
+            "potential_action": action
+        })
+
+    processed_tools.sort(key=lambda x: x["monthly_cost"], reverse=True)
+
+    return {
+        "data": processed_tools,
+        "savings_analysis": {
+            "total_underutilized_tools": len(processed_tools),
+            "potential_monthly_savings": round(potential_monthly_savings, 2),
+            "potential_annual_savings": round(potential_monthly_savings * 12, 2)
         }
     }

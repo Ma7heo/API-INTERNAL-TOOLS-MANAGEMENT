@@ -345,3 +345,48 @@ def test_analytics_tools_by_category_happy_path():
     assert data["Operations"]["total_users"] == 5
     assert data["Operations"]["percentage_of_budget"] == 50.0
     assert data["Operations"]["average_cost_per_user"] == 100.0
+
+def test_analytics_low_usage_tools_happy_path():
+    db = TestingSessionLocal()
+    
+    db.add(models.Tool(name="GhostTool", description="D", vendor="V", monthly_cost=100.0, owner_department="Sales", category_id=1, status="active", active_users_count=0))
+    
+    db.add(models.Tool(name="ExpensiveTool", description="D", vendor="V", monthly_cost=120.0, owner_department="Sales", category_id=1, status="active", active_users_count=2))
+    
+    db.add(models.Tool(name="MediumTool", description="D", vendor="V", monthly_cost=120.0, owner_department="Sales", category_id=1, status="active", active_users_count=4))
+    
+    db.add(models.Tool(name="CheapTool", description="D", vendor="V", monthly_cost=30.0, owner_department="Sales", category_id=1, status="active", active_users_count=3))
+    
+    db.add(models.Tool(name="PopTool", description="D", vendor="V", monthly_cost=1000.0, owner_department="Sales", category_id=1, status="active", active_users_count=10))
+    
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/low-usage-tools")
+    assert response.status_code == 200
+    result = response.json()
+
+    assert result["savings_analysis"]["total_underutilized_tools"] == 4 # PopTool est ignoré
+
+    assert result["savings_analysis"]["potential_monthly_savings"] == 340.0
+    assert result["savings_analysis"]["potential_annual_savings"] == 4080.0 # 340 * 12
+
+    data = {item["name"]: item for item in result["data"]}
+    
+    assert data["GhostTool"]["warning_level"] == "high"
+    assert data["ExpensiveTool"]["warning_level"] == "high"
+    assert data["MediumTool"]["warning_level"] == "medium"
+    assert data["CheapTool"]["warning_level"] == "low"
+    
+    assert data["GhostTool"]["potential_action"] == "Consider canceling or downgrading"
+
+def test_analytics_low_usage_tools_invalid_parameter():
+    """Vérifie que l'API renvoie bien une erreur 400 formatée si max_users est négatif."""
+    response = client.get("/api/analytics/low-usage-tools?max_users=-5")
+    
+    assert response.status_code == 400
+    
+    data = response.json()
+    assert data["error"] == "Invalid analytics parameter"
+    assert "max_users" in data["details"]
+    assert data["details"]["max_users"] == "Must be 0 or a positive integer"

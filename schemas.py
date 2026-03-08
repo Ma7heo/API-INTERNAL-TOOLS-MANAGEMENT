@@ -110,7 +110,6 @@ class ExpensiveToolsResponse(BaseModel):
 
 
 
-
 class CategoryAnalyticsItem(BaseModel):
     category_name: str
     tools_count: int
@@ -126,4 +125,26 @@ class CategoryAnalyticsInsights(BaseModel):
 class CategoryAnalyticsResponse(BaseModel):
     data: List[CategoryAnalyticsItem]
     insights: CategoryAnalyticsInsights
+    message: Optional[str] = None
+
+
+class LowUsageToolItem(BaseModel):
+    id: int
+    name: str
+    monthly_cost: float
+    active_users_count: int
+    cost_per_user: float
+    department: str
+    vendor: str
+    warning_level: str
+    potential_action: str
+
+class LowUsageSavingsAnalysis(BaseModel):
+    total_underutilized_tools: int
+    potential_monthly_savings: float
+    potential_annual_savings: float
+
+class LowUsageResponse(BaseModel):
+    data: List[LowUsageToolItem]
+    savings_analysis: LowUsageSavingsAnalysis
     message: Optional[str] = None

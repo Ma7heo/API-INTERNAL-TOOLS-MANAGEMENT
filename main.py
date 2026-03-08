@@ -148,3 +148,21 @@ def get_expensive_tools_analytics(
 def get_tools_by_category_analytics(db: Session = Depends(get_db)):
     """Analyse la répartition de la stack technologique par domaine (Stakeholder: IT Director)."""
     return services.get_tools_by_category(db)
+
+@app.get("/api/analytics/low-usage-tools", tags=["Analytics"])
+def get_low_usage_tools_analytics(
+    max_users: int = Query(5, description="Seuil d'utilisateurs maximum pour considérer un outil sous-utilisé"),
+    db: Session = Depends(get_db)
+):
+    """Identifie les outils sous-utilisés et propose des actions d'optimisation."""
+    if max_users < 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": "Invalid analytics parameter",
+                "details": {"max_users": "Must be 0 or a positive integer"}
+            }
+        )
+        
+    response_data = services.get_low_usage_tools(db, max_users)
+    return schemas.LowUsageResponse(**response_data)
