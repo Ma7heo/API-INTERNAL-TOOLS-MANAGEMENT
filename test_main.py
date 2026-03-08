@@ -390,3 +390,35 @@ def test_analytics_low_usage_tools_invalid_parameter():
     assert data["error"] == "Invalid analytics parameter"
     assert "max_users" in data["details"]
     assert data["details"]["max_users"] == "Must be 0 or a positive integer"
+
+def test_analytics_vendor_summary_happy_path():
+    db = TestingSessionLocal()
+    
+    db.add(models.Tool(name="Google WS", description="D", vendor="Google", monthly_cost=14.0, owner_department="Sales", category_id=1, status="active", active_users_count=4))
+    db.add(models.Tool(name="Google Cloud", description="D", vendor="Google", monthly_cost=10.0, owner_department="Engineering", category_id=1, status="active", active_users_count=4))
+    
+    db.add(models.Tool(name="Big ERP", description="D", vendor="BigCorp", monthly_cost=500.0, owner_department="Engineering", category_id=1, status="active", active_users_count=10))
+
+    db.add(models.Tool(name="Med Tool", description="D", vendor="MediocreCorp", monthly_cost=100.0, owner_department="Marketing", category_id=1, status="active", active_users_count=5))
+    
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/vendor-summary")
+    assert response.status_code == 200
+    result = response.json()
+
+    insights = result["vendor_insights"]
+    assert insights["single_tool_vendors"] == 2
+    assert insights["most_expensive_vendor"] == "BigCorp" 
+    assert insights["most_efficient_vendor"] == "Google" 
+
+    data = {item["vendor"]: item for item in result["data"]}
+    
+    assert data["Google"]["tools_count"] == 2
+    assert data["Google"]["departments"] == "Engineering,Sales"
+    assert data["Google"]["average_cost_per_user"] == 3.0
+    assert data["Google"]["vendor_efficiency"] == "excellent"
+
+    assert data["MediocreCorp"]["vendor_efficiency"] == "average"
+    assert data["BigCorp"]["vendor_efficiency"] == "poor"

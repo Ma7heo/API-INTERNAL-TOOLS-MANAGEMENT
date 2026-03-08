@@ -148,3 +148,23 @@ class LowUsageResponse(BaseModel):
     data: List[LowUsageToolItem]
     savings_analysis: LowUsageSavingsAnalysis
     message: Optional[str] = None
+
+
+
+class VendorSummaryItem(BaseModel):
+    vendor: str
+    tools_count: int
+    total_monthly_cost: float
+    total_users: int
+    departments: str 
+    average_cost_per_user: float
+    vendor_efficiency: str
+
+class VendorInsights(BaseModel):
+    most_expensive_vendor: Optional[str] = None
+    most_efficient_vendor: Optional[str] = None
+    single_tool_vendors: int
+
+class VendorSummaryResponse(BaseModel):
+    data: List[VendorSummaryItem]
+    vendor_insights: VendorInsights

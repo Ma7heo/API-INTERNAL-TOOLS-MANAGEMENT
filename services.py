@@ -411,3 +411,85 @@ def get_low_usage_tools(db: Session, max_users: int = 5):
             "potential_annual_savings": round(potential_monthly_savings * 12, 2)
         }
     }
+
+def get_vendor_summary(db: Session):
+    active_tools = db.query(models.Tool).filter(models.Tool.status == "active").all()
+    
+    if not active_tools:
+        return {
+            "data": [],
+            "vendor_insights": {
+                "most_expensive_vendor": None,
+                "most_efficient_vendor": None,
+                "single_tool_vendors": 0
+            }
+        }
+
+    vendors_dict = {}
+    for tool in active_tools:
+        vendor = tool.vendor
+        dept = tool.owner_department.value if hasattr(tool.owner_department, 'value') else tool.owner_department
+        
+        if vendor not in vendors_dict:
+            vendors_dict[vendor] = {
+                "tools_count": 0,
+                "total_monthly_cost": 0.0,
+                "total_users": 0,
+                "departments": set()
+            }
+        
+        vendors_dict[vendor]["tools_count"] += 1
+        vendors_dict[vendor]["total_monthly_cost"] += float(tool.monthly_cost)
+        vendors_dict[vendor]["total_users"] += tool.active_users_count
+        vendors_dict[vendor]["departments"].add(dept)
+
+    processed_vendors = []
+    single_tool_count = 0
+
+    for vendor_name, data in vendors_dict.items():
+        if data["tools_count"] == 1:
+            single_tool_count += 1
+
+        avg_cpu = data["total_monthly_cost"] / data["total_users"] if data["total_users"] > 0 else 0.0
+        
+        if data["total_users"] == 0:
+            rating = "poor"
+        elif avg_cpu < 5.0:
+            rating = "excellent"
+        elif 5.0 <= avg_cpu <= 15.0:
+            rating = "good"
+        elif 15.0 < avg_cpu <= 25.0:
+            rating = "average"
+        else:
+            rating = "poor"
+
+        sorted_depts_list = sorted(list(data["departments"]))
+        departments_str = ",".join(sorted_depts_list)
+
+        processed_vendors.append({
+            "vendor": vendor_name,
+            "tools_count": data["tools_count"],
+            "total_monthly_cost": round(data["total_monthly_cost"], 2),
+            "total_users": data["total_users"],
+            "departments": departments_str,
+            "average_cost_per_user": round(avg_cpu, 2),
+            "vendor_efficiency": rating
+        })
+
+    sorted_expensive = sorted(processed_vendors, key=lambda x: (-x["total_monthly_cost"], x["vendor"]))
+    most_expensive_vendor = sorted_expensive[0]["vendor"] if sorted_expensive else None
+
+    valid_efficiency = [v for v in processed_vendors if v["total_users"] > 0]
+    sorted_efficient = sorted(valid_efficiency, key=lambda x: (x["average_cost_per_user"], x["vendor"]))
+    most_efficient_vendor = sorted_efficient[0]["vendor"] if valid_efficiency else None
+
+    processed_vendors.sort(key=lambda x: x["total_monthly_cost"], reverse=True)
+
+    return {
+        "data": processed_vendors,
+        "vendor_insights": {
+            "most_expensive_vendor": most_expensive_vendor,
+            "most_efficient_vendor": most_efficient_vendor,
+            "single_tool_vendors": single_tool_count
+        }
+    }

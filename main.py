@@ -166,3 +166,8 @@ def get_low_usage_tools_analytics(
         
     response_data = services.get_low_usage_tools(db, max_users)
     return schemas.LowUsageResponse(**response_data)
+
+@app.get("/api/analytics/vendor-summary", response_model=schemas.VendorSummaryResponse, tags=["Analytics"])
+def get_vendor_summary_analytics(db: Session = Depends(get_db)):
+    """Analyse stratégique de l'empreinte des fournisseurs (Stakeholder: Alex)."""
+    return services.get_vendor_summary(db)
