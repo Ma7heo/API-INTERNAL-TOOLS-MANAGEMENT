@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -105,3 +105,13 @@ async def global_exception_handler(request: Request, exc: Exception):
             }
         }
     )
+
+
+@app.get("/api/analytics/department-costs", response_model=schemas.DepartmentCostResponse, tags=["Analytics"])
+def get_department_costs_analytics(
+    sort_by: str = Query("total_cost", description="Champ sur lequel trier les résultats"),
+    order: str = Query("desc", pattern="^(asc|desc)$", description="Ordre de tri (asc ou desc)"),
+    db: Session = Depends(get_db)
+):
+    """Analyse la répartition des coûts des outils par département (Stakeholder: CFO)."""
+    return services.get_department_costs(db, sort_by, order)

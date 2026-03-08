@@ -158,3 +158,69 @@ def test_update_tool_not_found():
     """Vérifie qu'on ne peut pas mettre à jour un outil fantôme."""
     response = client.put("/api/tools/999", json={"monthly_cost": 50.0})
     assert response.status_code == 404
+
+
+
+def test_analytics_department_costs_empty():
+    """Test 1: Vérifie la protection division par zéro quand aucun outil n'est actif."""
+    response = client.get("/api/analytics/department-costs")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "No analytics data available - ensure tools data exists"
+    assert data["summary"]["total_company_cost"] == 0.0
+    assert len(data["data"]) == 0
+
+def test_analytics_department_costs_happy_path():
+    """Test 2: Vérifie les mathématiques et l'exclusion stricte des outils inactifs."""
+    db = TestingSessionLocal()
+    
+    tools_data = [
+        models.Tool(name="EngTool1", description="Test", vendor="V1", monthly_cost=100.0, owner_department="Engineering", category_id=1, status="active", active_users_count=10),
+        models.Tool(name="EngTool2", description="Test", vendor="V2", monthly_cost=50.0, owner_department="Engineering", category_id=1, status="active", active_users_count=5),
+        
+        models.Tool(name="SalesTool1", description="Test", vendor="V3", monthly_cost=50.0, owner_department="Sales", category_id=1, status="active", active_users_count=5),
+        
+        models.Tool(name="OldSalesTool", description="Test", vendor="V4", monthly_cost=1000.0, owner_department="Sales", category_id=1, status="deprecated", active_users_count=100)
+    ]
+    
+    db.add_all(tools_data)
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/department-costs")
+    assert response.status_code == 200
+    
+    result = response.json()
+    
+    assert result["summary"]["total_company_cost"] == 200.0
+    assert result["summary"]["departments_count"] == 2
+    assert result["summary"]["most_expensive_department"] == "Engineering"
+
+    eng_stats = next(item for item in result["data"] if item["department"] == "Engineering")
+    assert eng_stats["total_cost"] == 150.0
+    assert eng_stats["tools_count"] == 2
+    assert eng_stats["total_users"] == 15
+    assert eng_stats["average_cost_per_tool"] == 75.0
+    assert eng_stats["cost_percentage"] == 75.0
+
+    sales_stats = next(item for item in result["data"] if item["department"] == "Sales")
+    assert sales_stats["total_cost"] == 50.0
+    assert sales_stats["tools_count"] == 1
+    assert sales_stats["cost_percentage"] == 25.0
+
+def test_analytics_department_costs_sorting():
+    """Test 3: Vérifie que le tri dynamique fonctionne bien."""
+    db = TestingSessionLocal()
+    db.add(models.Tool(name="T1", description="D", vendor="V", monthly_cost=100.0, owner_department="Engineering", category_id=1, status="active", active_users_count=1))
+    db.add(models.Tool(name="T2", description="D", vendor="V", monthly_cost=50.0, owner_department="Engineering", category_id=1, status="active", active_users_count=1))
+    db.add(models.Tool(name="T3", description="D", vendor="V", monthly_cost=50.0, owner_department="Sales", category_id=1, status="active", active_users_count=1))
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/department-costs?sort_by=tools_count&order=asc")
+    assert response.status_code == 200
+    
+    data = response.json()["data"]
+    assert data[0]["department"] == "Sales"
+    assert data[1]["department"] == "Engineering"

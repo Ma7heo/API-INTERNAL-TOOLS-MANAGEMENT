@@ -148,3 +148,65 @@ def list_tools(
         "filtered": filtered_tools_count,
         "filters_applied": filters_applied
     }
+
+def get_department_costs(db: Session, sort_by: str = "total_cost", order: str = "desc"):
+    
+    total_company_cost_query = db.query(func.sum(models.Tool.monthly_cost)).filter(models.Tool.status == "active").scalar()
+    total_company_cost = float(total_company_cost_query) if total_company_cost_query else 0.0
+
+    if total_company_cost == 0:
+        return {
+            "data": [],
+            "summary": {"total_company_cost": 0.0, "departments_count": 0, "most_expensive_department": None},
+            "message": "No analytics data available - ensure tools data exists"
+        }
+    
+    dept_stats = db.query(
+        models.Tool.owner_department.label("department"),
+        func.sum(models.Tool.monthly_cost).label("total_cost"),
+        func.count(models.Tool.id).label("tools_count"),
+        func.sum(models.Tool.active_users_count).label("total_users")
+    ).filter(
+        models.Tool.status == "active"
+    ).group_by(
+        models.Tool.owner_department
+    ).all()
+
+    data_list = []
+    for stat in dept_stats:
+        dept_name = stat.department.value if hasattr(stat.department, 'value') else stat.department
+        
+        total_cost = float(stat.total_cost or 0)
+        tools_count = int(stat.tools_count or 0)
+        total_users = int(stat.total_users or 0)
+        
+        avg_cost = round(total_cost / tools_count, 2) if tools_count > 0 else 0.0
+        percentage = round((total_cost / total_company_cost) * 100, 1)
+
+        data_list.append({
+            "department": dept_name,
+            "total_cost": round(total_cost, 2),
+            "tools_count": tools_count,
+            "total_users": total_users,
+            "average_cost_per_tool": avg_cost,
+            "cost_percentage": percentage
+        })
+    
+    valid_sort_keys = ["department", "total_cost", "tools_count", "total_users", "average_cost_per_tool", "cost_percentage"]
+    if sort_by not in valid_sort_keys:
+        sort_by = "total_cost"
+    
+    reverse_sort = order.lower() == "desc"
+    data_list.sort(key=lambda x: x[sort_by], reverse=reverse_sort)
+
+    sorted_for_most_expensive = sorted(data_list, key=lambda x: (-x["total_cost"], x["department"]))
+    most_expensive_dept = sorted_for_most_expensive[0]["department"] if sorted_for_most_expensive else None
+
+    return {
+        "data": data_list,
+        "summary": {
+            "total_company_cost": round(total_company_cost, 2),
+            "departments_count": len(data_list),
+            "most_expensive_department": most_expensive_dept
+        }
+    }

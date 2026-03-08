@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, HttpUrl, ConfigDict, field_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from decimal import Decimal
 
@@ -64,3 +64,22 @@ class PaginatedToolResponse(BaseModel):
     total: int
     filtered: int
     filters_applied: Dict[str, Any]
+
+class DepartmentCostItem(BaseModel):
+    department: str
+    total_cost: float
+    tools_count: int
+    total_users: int
+    average_cost_per_tool: float
+    cost_percentage: float
+
+class DepartmentCostSummary(BaseModel):
+    total_company_cost: float
+    departments_count: int
+    most_expensive_department: Optional[str] = None
+
+class DepartmentCostResponse(BaseModel):
+    data: List[DepartmentCostItem]
+    summary: DepartmentCostSummary
+    message: Optional[str] = None
+
