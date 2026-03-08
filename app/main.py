@@ -6,10 +6,8 @@ from typing import Optional
 from decimal import Decimal
 import logging
 
-import models
-import schemas
-from database import get_db
-import services
+from app import models, schemas, services
+from app.database import get_db
 
 
 app = FastAPI(

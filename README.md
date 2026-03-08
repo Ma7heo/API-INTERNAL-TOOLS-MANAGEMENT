@@ -12,13 +12,14 @@ API RESTful pour la gestion centralisée du catalogue d'outils SaaS de TechCorp 
 
 1. `./scripts/start-postgres.sh` (ou `docker compose up -d`)
 2. `python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
-3. `uvicorn main:app --reload`
+3. `uvicorn app.main:app --reload`
 4. API disponible sur http://localhost:8000
 5. Documentation: http://localhost:8000/api/docs
 
 ## Configuration
 - Variables d'environnement: voir `.env.example`
 - Configuration DB: Les identifiants de connexion sont chargés dynamiquement via SQLAlchemy dans le fichier `database.py` depuis les variables d'environnement pour garantir la sécurité.
+- Configuration de la base de données (première utilisation) : Voir les instructions détaillées dans [postgresql/README.md](./postgresql/README.md).
 
 ## Tests  
 `pytest` - Tests unitaires + intégration

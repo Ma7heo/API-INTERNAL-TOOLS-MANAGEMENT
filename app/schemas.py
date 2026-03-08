@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from decimal import Decimal
 
-from models import DepartmentType, ToolStatusType
+from app.models import DepartmentType, ToolStatusType
 
 class ToolBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Nom de l'outil (2-100 caractères)")

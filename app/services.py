@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
-import models
-import schemas
+from app import models, schemas
 
 def create_tool(db: Session, tool: schemas.ToolCreate):
     category = db.query(models.Category).filter(models.Category.id == tool.category_id).first()
