@@ -210,3 +210,78 @@ def get_department_costs(db: Session, sort_by: str = "total_cost", order: str = 
             "most_expensive_department": most_expensive_dept
         }
     }
+
+def get_expensive_tools(db: Session, limit: int = 10, min_cost: Optional[float] = None):
+    active_tools = db.query(models.Tool).filter(models.Tool.status == "active").all()
+    total_active_tools = len(active_tools)
+
+    if total_active_tools == 0:
+        return {
+            "data": [],
+            "analysis": {
+                "total_tools_analyzed": 0,
+                "avg_cost_per_user_company": 0.0,
+                "potential_savings_identified": 0.0
+            },
+            "message": "No analytics data available - ensure tools data exists"
+        }
+
+    valid_tools_for_avg = [t for t in active_tools if t.active_users_count > 0]
+    sum_cost = sum(float(t.monthly_cost) for t in valid_tools_for_avg)  
+    sum_users = sum(t.active_users_count for t in valid_tools_for_avg)
+    
+    avg_cost_per_user_company = (sum_cost / sum_users) if sum_users > 0 else 0.0
+
+    processed_tools = []
+    potential_savings = 0.0
+
+    for tool in active_tools:
+        cost_per_user = float(tool.monthly_cost) / tool.active_users_count if tool.active_users_count > 0 else 0.0
+        
+        if tool.active_users_count == 0:
+            rating = "low"
+        elif avg_cost_per_user_company == 0:
+            rating = "low" if cost_per_user > 0 else "excellent"
+        else:
+            ratio_percentage = (cost_per_user / avg_cost_per_user_company) * 100
+            
+            if ratio_percentage < 50:
+                rating = "excellent"
+            elif 50 <= ratio_percentage <= 80:
+                rating = "good"
+            elif 80 < ratio_percentage <= 120:
+                rating = "average"
+            else:
+                rating = "low"
+
+        if rating == "low":
+            potential_savings += float(tool.monthly_cost)
+
+        dept_name = tool.owner_department.value if hasattr(tool.owner_department, 'value') else tool.owner_department
+        
+        processed_tools.append({
+            "id": tool.id,
+            "name": tool.name,
+            "monthly_cost": round(float(tool.monthly_cost), 2),
+            "active_users_count": tool.active_users_count,
+            "cost_per_user": round(cost_per_user, 2),
+            "department": dept_name,
+            "vendor": tool.vendor,
+            "efficiency_rating": rating
+        })
+
+    filtered_tools = processed_tools
+    if min_cost is not None:
+        filtered_tools = [t for t in filtered_tools if t["monthly_cost"] >= min_cost]
+        
+    filtered_tools.sort(key=lambda x: x["monthly_cost"], reverse=True)
+    filtered_tools = filtered_tools[:limit]
+
+    return {
+        "data": filtered_tools,
+        "analysis": {
+            "total_tools_analyzed": total_active_tools,
+            "avg_cost_per_user_company": round(avg_cost_per_user_company, 2),
+            "potential_savings_identified": round(potential_savings, 2)
+        }
+    }

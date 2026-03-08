@@ -115,3 +115,31 @@ def get_department_costs_analytics(
 ):
     """Analyse la répartition des coûts des outils par département (Stakeholder: CFO)."""
     return services.get_department_costs(db, sort_by, order)
+
+@app.get("/api/analytics/expensive-tools", tags=["Analytics"])
+def get_expensive_tools_analytics(
+    limit: int = Query(10, description="Nombre max d'outils à retourner"),
+    min_cost: Optional[float] = Query(None, description="Filtre : Coût mensuel minimum"),
+    db: Session = Depends(get_db)
+):
+    """Identifie les outils les plus coûteux et calcule les économies potentielles (Stakeholder: CFO)."""
+    
+    errors = {}
+    
+    if limit < 1:
+        errors["limit"] = "Must be positive integer"
+        
+    if min_cost is not None and min_cost < 0:
+        errors["min_cost"] = "Must be a positive number"
+
+    if errors:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": "Invalid analytics parameter",
+                "details": errors
+            }
+        )
+    
+    response_data = services.get_expensive_tools(db, limit, min_cost)
+    return schemas.ExpensiveToolsResponse(**response_data)

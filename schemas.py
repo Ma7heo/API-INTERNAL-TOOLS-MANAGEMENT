@@ -65,6 +65,8 @@ class PaginatedToolResponse(BaseModel):
     filtered: int
     filters_applied: Dict[str, Any]
 
+
+
 class DepartmentCostItem(BaseModel):
     department: str
     total_cost: float
@@ -83,3 +85,24 @@ class DepartmentCostResponse(BaseModel):
     summary: DepartmentCostSummary
     message: Optional[str] = None
 
+
+
+class ExpensiveToolItem(BaseModel):
+    id: int
+    name: str
+    monthly_cost: float
+    active_users_count: int
+    cost_per_user: float
+    department: str
+    vendor: str
+    efficiency_rating: str
+
+class ExpensiveToolsAnalysis(BaseModel):
+    total_tools_analyzed: int
+    avg_cost_per_user_company: float
+    potential_savings_identified: float
+
+class ExpensiveToolsResponse(BaseModel):
+    data: List[ExpensiveToolItem]
+    analysis: ExpensiveToolsAnalysis
+    message: Optional[str] = None

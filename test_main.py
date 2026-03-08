@@ -224,3 +224,44 @@ def test_analytics_department_costs_sorting():
     data = response.json()["data"]
     assert data[0]["department"] == "Sales"
     assert data[1]["department"] == "Engineering"
+
+def test_analytics_expensive_tools_invalid_parameters():
+    """Vérifie la gestion d'erreurs systémique sur plusieurs paramètres invalides."""
+    response = client.get("/api/analytics/expensive-tools?limit=-10&min_cost=-10")
+    assert response.status_code == 400
+    
+    data = response.json()
+    assert data["error"] == "Invalid analytics parameter"
+    assert "limit" in data["details"]
+    assert "min_cost" in data["details"]
+
+def test_analytics_expensive_tools_happy_path():
+    """Vérifie le rating (excellent/low), le filtre min_cost et les économies identifiées."""
+    db = TestingSessionLocal()
+    
+    db.add(models.Tool(name="GoodTool", description="D", vendor="V", monthly_cost=40.0, owner_department="Engineering", category_id=1, status="active", active_users_count=10)) 
+    
+    db.add(models.Tool(name="BadTool", description="D", vendor="V", monthly_cost=160.0, owner_department="Engineering", category_id=1, status="active", active_users_count=10))     
+    db.add(models.Tool(name="ZeroUserTool", description="D", vendor="V", monthly_cost=15.0, owner_department="Engineering", category_id=1, status="active", active_users_count=0)) 
+    
+    db.commit()
+    db.close()
+
+    response = client.get("/api/analytics/expensive-tools?min_cost=20.0")
+    assert response.status_code == 200
+    result = response.json()
+    
+    assert result["analysis"]["total_tools_analyzed"] == 3
+    assert result["analysis"]["avg_cost_per_user_company"] == 10.0
+    
+    assert result["analysis"]["potential_savings_identified"] == 175.0
+    
+    tools_data = result["data"]
+    assert len(tools_data) == 2
+    
+    assert tools_data[0]["name"] == "BadTool"
+    assert tools_data[0]["monthly_cost"] == 160.0
+    assert tools_data[0]["efficiency_rating"] == "low"
+    
+    assert tools_data[1]["name"] == "GoodTool"
+    assert tools_data[1]["efficiency_rating"] == "excellent"
